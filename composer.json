@@ -1,0 +1,21 @@
+{
+    "name": "yireo/magento2-table-rate-commands",
+    "version": "0.0.1",
+    "description": "N/A",
+    "type": "magento2-module",
+    "require": {
+        "magento/framework": "*",
+        "league/csv": "^9.22.0"
+    },
+    "license": [
+        "Open Software License (OSL)"
+    ],
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Yireo\\TablerateCommands\\": ""
+        }
+    }
+}

@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <type name="Magento\Framework\Console\CommandList">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="Yireo_TablerateCommands::tableRatesList" xsi:type="object">Yireo\TablerateCommands\Console\Command\TablerateListCommand</item>
+                <item name="Yireo_TablerateCommands::tableRatesExport" xsi:type="object">Yireo\TablerateCommands\Console\Command\TablerateExportCommand</item>
+                <item name="Yireo_TablerateCommands::tableRatesImport" xsi:type="object">Yireo\TablerateCommands\Console\Command\TablerateImportCommand</item>
+            </argument>
+        </arguments>
+    </type>
+</config>
