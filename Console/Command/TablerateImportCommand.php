@@ -172,7 +172,7 @@ class TablerateImportCommand extends Command
         }
 
         $country = $this->countryFactory->create();
-        $country->load($countryId, 'iso3_code');
+        $country->load($countryId, 'iso3_code'); // @phpstan-ignore-line
         return $country->getCountryId();
     }
 }
