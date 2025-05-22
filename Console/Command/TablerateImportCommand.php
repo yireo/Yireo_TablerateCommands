@@ -110,9 +110,6 @@ class TablerateImportCommand extends Command
             }
 
             $columns = array_slice($columns, 0, count($values));
-
-            print_r($values);
-
             $this->importData($columns, $values);
         }
 
