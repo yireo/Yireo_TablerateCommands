@@ -8,7 +8,7 @@
         "league/csv": "^9.22.0"
     },
     "license": [
-        "Open Software License (OSL)"
+        "OSL-3.0"
     ],
     "autoload": {
         "files": [
