@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.2] - 22 October 2025
+### Fixed
+- Add PHP 8.4
+- Fix license
+- Remove debugging
+
 ## [0.0.1] - 5 March 2025
 ### Added
 - Initial release
