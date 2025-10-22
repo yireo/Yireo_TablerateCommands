@@ -1,0 +1,15 @@
+{
+    "sequence": [
+        "Magento_OfflineShipping"
+    ],
+    "modules": [
+        "Magento_OfflineShipping",
+        "Magento_Quote",
+        "Magento_Sales",
+        "Magento_SalesRule",
+        "Magento_Store"
+    ],
+    "components": [],
+    "config": [],
+    "tests": []
+}
