@@ -2,6 +2,13 @@
 
 **A Magento 2 module offering CLI commands to manipulate table rates**
 
+### Installation
+
+```bash
+composer require yireo/magento2-tablerate-commands
+bin/magento module:enable Yireo_TablerateCommands
+```
+
 ### Usage
 List all existing tablerates:
 ```bash
