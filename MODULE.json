@@ -11,5 +11,7 @@
     ],
     "components": [],
     "config": [],
-    "tests": []
+    "tests": [],
+    "module_name": "Yireo_TablerateCommands",
+    "composer_name": "yireo/magento2-tablerate-commands"
 }
