@@ -2,28 +2,35 @@
 
 namespace Yireo\TablerateCommands\Console\Command;
 
-use Exception;
-use Magento\Directory\Model\CountryFactory;
-use Magento\Directory\Model\ResourceModel\Region\CollectionFactory;
+use InvalidArgumentException;
+use League\Csv\Exception as CsvException;
+use League\Csv\Reader;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\App\ResourceConnection;
-use Magento\OfflineShipping\Model\ResourceModel\Carrier\Tablerate\Collection as TablerateCollection;
 use Magento\OfflineShipping\Model\ResourceModel\Carrier\Tablerate\CollectionFactory as TablerateCollectionFactory;
+use Magento\Store\Model\ScopeInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use League\Csv\Reader;
+use Throwable;
+use Yireo\TablerateCommands\Console\InputValidator;
+use Yireo\TablerateCommands\Model\TablerateRecordConverter;
 
 class TablerateImportCommand extends Command
 {
+    private const INSERT_BATCH_SIZE = 500;
+
     public function __construct(
-        private TablerateCollectionFactory $tablerateCollectionFactory,
-        private ScopeConfigInterface $scopeConfig,
-        private ResourceConnection $resourceConnection,
-        private CountryFactory $countryFactory,
-        private CollectionFactory $regionCollectionFactory,
+        private readonly TablerateCollectionFactory $tablerateCollectionFactory,
+        private readonly ScopeConfigInterface $scopeConfig,
+        private readonly ResourceConnection $resourceConnection,
+        private readonly InputValidator $inputValidator,
+        private readonly TablerateRecordConverter $recordConverter,
+        private readonly LoggerInterface $logger,
         ?string $name = null
     ) {
         parent::__construct($name);
@@ -35,141 +42,118 @@ class TablerateImportCommand extends Command
         $this->setDescription('Import table rates from CSV');
         $this->addArgument('website_id', InputArgument::REQUIRED, 'Website ID');
         $this->addArgument('csv_file', InputArgument::REQUIRED, 'CSV file');
-        $this->addOption('overwrite', null, InputOption::VALUE_OPTIONAL, 'Overwrite CSV file if exists', false);
+        $this->addOption(
+            'overwrite',
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'Replace the existing table rates of this website',
+            false
+        );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $websiteId = trim((string)$input->getArgument('website_id'));
-        if (empty($websiteId)) {
-            $output->writeln('<error>Website ID is required</error>');
-
-            return Command::INVALID;
+        try {
+            $websiteId = $this->inputValidator->getWebsiteId($input);
+            $overwrite = $this->inputValidator->isOverwrite($input);
+            $csvFile = $this->inputValidator->getReadableCsvFile($input);
+        } catch (InvalidArgumentException $exception) {
+            return $this->error($output, $exception->getMessage());
         }
 
-        $overwrite = (bool)$input->getOption('overwrite');
-        $collection = $this->getCollection($websiteId);
-        if (false === $overwrite && $collection->getSize() > 0) {
-            $output->writeln(
-                '<error>'.(string)__(
-                    'Found %1 tablerates without allowing overwrites',
-                    $collection->getSize()
-                ).'</error>'
+        $existingCount = $this->getExistingCount($websiteId);
+        if (false === $overwrite && $existingCount > 0) {
+            return $this->error(
+                $output,
+                (string)__('Found %1 tablerates without allowing overwrites', $existingCount)
             );
-
-            return Command::INVALID;
         }
 
-        $csvFile = (string)$input->getArgument('csv_file');
-        if (false === file_exists($csvFile)) {
-            $output->writeln('<error>No such file</error>');
-
-            return Command::INVALID;
+        $conditionName = (string)$this->scopeConfig->getValue(
+            'carriers/tablerate/condition_name',
+            ScopeInterface::SCOPE_WEBSITE,
+            $websiteId
+        );
+        if ($conditionName === '') {
+            return $this->error($output, (string)__('No table rate condition name configured'));
         }
 
-        $this->cleanData($websiteId);
-
-        $conditionName = $this->scopeConfig->getValue('carriers/tablerate/condition_name', 'website', $websiteId);
-
-        $reader = Reader::createFromPath($csvFile, 'r');
-        $reader->setHeaderOffset(0);
-        $records = $reader->getRecords();
-
-        $columns = [
-            'website_id',
-            'dest_country_id',
-            'dest_region_id',
-            'dest_zip',
-            'condition_name',
-            'condition_value',
-            'price',
-            'cost',
-        ];
-
-        foreach ($records as $record) {
-
-            $record = array_values($record);
-
-            $values = [];
-            $values['website_id'] = $websiteId;
-            $values['dest_country_id'] = $this->getTwoLetterCountryId($record[0]);
-            $values['dest_region_id'] = $this->getRegionId($values['dest_country_id'], $record[1]);
-            $values['dest_zip'] = $record[2];
-            $values['condition_name'] = $conditionName;
-
-            if (isset($record[3])) {
-                $values['condition_value'] = $record[3];
-            }
-
-            if (isset($record[4])) {
-                $values['price'] = $record[4];
-            }
-
-            if (isset($record[5])) {
-                $values['cost'] = $record[5];
-            }
-
-            $columns = array_slice($columns, 0, count($values));
-            $this->importData($columns, $values);
+        try {
+            [$rows, $errors] = $this->getRows($csvFile, $websiteId, $conditionName);
+        } catch (CsvException) {
+            return $this->error($output, (string)__('Unable to read CSV file'));
         }
+
+        if (!empty($errors)) {
+            foreach ($errors as $error) {
+                $this->error($output, $error);
+            }
+
+            return $this->error($output, (string)__('Import aborted, no table rates were changed'));
+        }
+
+        try {
+            $this->replaceRows($websiteId, $rows);
+        } catch (Throwable $exception) {
+            $this->logger->error($exception->getMessage(), ['exception' => $exception]);
+
+            return $this->error($output, (string)__('Import failed, no table rates were changed'));
+        }
+
+        $output->writeln((string)__('Imported %1 tablerates', count($rows)));
 
         return Command::SUCCESS;
     }
 
-    private function getCollection(string $websiteId): TablerateCollection
+    private function getRows(string $csvFile, int $websiteId, string $conditionName): array
+    {
+        $errors = [];
+        $rows = [];
+
+        $reader = Reader::from($csvFile, 'r');
+        $reader->setHeaderOffset(0);
+
+        foreach ($reader->getRecords() as $offset => $record) {
+            try {
+                $rows[] = $this->recordConverter->convert($record, $websiteId, $conditionName);
+            } catch (InvalidArgumentException $exception) {
+                $errors[] = (string)__('Line %1: %2', (int)$offset + 1, $exception->getMessage());
+            }
+        }
+
+        return [$rows, $errors];
+    }
+
+    private function replaceRows(int $websiteId, array $rows): void
+    {
+        $connection = $this->resourceConnection->getConnection();
+        $table = $this->resourceConnection->getTableName('shipping_tablerate');
+
+        $connection->beginTransaction();
+        try {
+            $connection->delete($table, ['website_id = ?' => $websiteId]);
+            foreach (array_chunk($rows, self::INSERT_BATCH_SIZE) as $batch) {
+                $connection->insertArray($table, TablerateRecordConverter::COLUMNS, $batch);
+            }
+            $connection->commit();
+        } catch (Throwable $exception) {
+            $connection->rollBack();
+            throw $exception;
+        }
+    }
+
+    private function getExistingCount(int $websiteId): int
     {
         $collection = $this->tablerateCollectionFactory->create();
         $collection->addFieldToFilter('website_id', ['eq' => $websiteId]);
 
-        return $collection;
+        return (int)$collection->getSize();
     }
 
-    private function cleanData(string $websiteId)
+    private function error(OutputInterface $output, string $message): int
     {
-        $connection = $this->resourceConnection->getConnection();
-        $table = $connection->getTableName('shipping_tablerate');
-        $connection->beginTransaction();
-        $connection->query('DELETE FROM `'.$table.'` WHERE `website_id` = "'.$websiteId.'"');
-        $connection->commit();
-    }
+        $output->writeln('<error>'.OutputFormatter::escape($message).'</error>');
 
-    private function importData(array $columns, array $values)
-    {
-        $connection = $this->resourceConnection->getConnection();
-        $connection->beginTransaction();
-        $table = $connection->getTableName('shipping_tablerate');
-
-        try {
-            $connection->insertArray($table, $columns, [$values]);
-        } catch (Exception $e) {
-            $connection->rollBack();
-            throw $e;
-        }
-
-        $connection->commit();
-    }
-
-    private function getRegionId(string $countryId, string $regionId): int
-    {
-        if ($regionId === '*') {
-            return 0;
-        }
-
-        $regionCollection = $this->regionCollectionFactory->create();
-        $regionCollection->addFilter('country_id', $countryId);
-        $regionCollection->addFilter('code', $regionId);
-        $region = $regionCollection->getFirstItem();
-        return (int)$region->getRegionId();
-    }
-
-    private function getTwoLetterCountryId(string $countryId): string
-    {
-        if (strlen($countryId) === 2) {
-            return $countryId;
-        }
-
-        $country = $this->countryFactory->create();
-        $country->load($countryId, 'iso3_code'); // @phpstan-ignore-line
-        return $country->getCountryId();
+        return Command::INVALID;
     }
 }
