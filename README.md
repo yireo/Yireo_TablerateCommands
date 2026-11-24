@@ -18,22 +18,29 @@ bin/magento module:enable Yireo_TablerateCommands
 ```
 
 ### Usage
-List all existing tablerates:
+List all existing tablerates (optionally only those of website ID `1`):
 ```bash
 bin/magento yireo_tablerates:list
+bin/magento yireo_tablerates:list --website_id=1
 ```
 
 Export all existing tablerates with website ID `1`:
 ```bash
 bin/magento yireo_tablerates:export 1 test.csv
-bin/magento yireo_tablerates:export 1 test.csv --overwrite=1
+bin/magento yireo_tablerates:export 1 test.csv --overwrite
 ```
 
 Import tablerates with website ID `1`:
 ```bash
 bin/magento yireo_tablerates:import 1 test.csv
-bin/magento yireo_tablerates:import 1 test.csv --overwrite=1
+bin/magento yireo_tablerates:import 1 test.csv --overwrite
 ```
+
+Notes:
+- The CSV file must have the extension `.csv`. The export refuses to write into `pub/` or `app/etc/`.
+- With `--overwrite` (or `--overwrite=1`), the import replaces all existing tablerates of the website.
+- The import validates all rows first (country, region, postcode and numbers). If any row is invalid, nothing is changed.
+- Text columns of the export are escaped against spreadsheet formula injection.
 
 ## Current status
 
