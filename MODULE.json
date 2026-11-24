@@ -1,6 +1,8 @@
 {
     "sequence": [
-        "Magento_OfflineShipping"
+        "Magento_Directory",
+        "Magento_OfflineShipping",
+        "Magento_Store"
     ],
     "modules": [
         "Magento_OfflineShipping",
@@ -13,5 +15,7 @@
     "config": [],
     "tests": [],
     "module_name": "Yireo_TablerateCommands",
-    "composer_name": "yireo/magento2-tablerate-commands"
+    "composer_name": "yireo/magento2-tablerate-commands",
+    "phpcs_severity": "9",
+    "phpstan_level": "5"
 }
