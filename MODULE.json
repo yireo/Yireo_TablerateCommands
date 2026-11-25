@@ -5,17 +5,43 @@
         "Magento_Store"
     ],
     "modules": [
+        "Magento_AdminNotification",
+        "Magento_Catalog",
+        "Magento_Cms",
+        "Magento_Csp",
+        "Magento_Customer",
+        "Magento_Directory",
+        "Magento_Eav",
+        "Magento_Indexer",
+        "Magento_MediaGalleryUiApi",
         "Magento_OfflineShipping",
+        "Magento_Payment",
         "Magento_Quote",
+        "Magento_Rule",
         "Magento_Sales",
         "Magento_SalesRule",
-        "Magento_Store"
+        "Magento_SalesSequence",
+        "Magento_Store",
+        "Magento_Theme",
+        "Magento_Variable"
     ],
     "components": [],
     "config": [],
-    "tests": [],
+    "tests": {
+        "unit": 11,
+        "integration": 18,
+        "functional": 0
+    },
     "module_name": "Yireo_TablerateCommands",
     "composer_name": "yireo/magento2-tablerate-commands",
     "phpcs_severity": "9",
-    "phpstan_level": "5"
+    "phpstan_level": "5",
+    "php_versions": [
+        "8.2",
+        "8.3",
+        "8.4",
+        "8.5"
+    ],
+    "skip_magento_versions": [],
+    "skip_css_utils": false
 }
